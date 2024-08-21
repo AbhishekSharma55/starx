@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, Key, useEffect, useState } from "react";
+import { FormEvent, Key, use, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,18 +8,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Link from "next/link";
-
-// Define the structure of a chat message
-interface ChatMessage {
-  type: "user" | "bot";
-  message: string;
-}
+import ChatModel from "@/models/Chats";
+import { set } from "mongoose";
 
 export default function StarXGPTPage() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [allChats, setAllChats] = useState<typeof ChatModel[]>([]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -35,40 +33,50 @@ export default function StarXGPTPage() {
   }, [input]);
 
   useEffect(() => {
-    // Fetch chat history on component mount
-    const fetchHistory = async () => {
-      const res = await fetch("/api/starxgpt/chat");
-      const data = await res.json();
-      setChatHistory(data.history || []);
+    const fetchChatData = async () => {
+      if (currentSessionId !== null) {
+        const res = await fetch(`/api/starxgpt/chat?sessionId=${currentSessionId}`, {
+          method: "GET",
+        });
+        const data = await res.json();
+        console.log({data});
+        setChatHistory(data.messages || []);
+        setAllChats(data.allChats || []);
+      }
     };
 
-    fetchHistory();
+    fetchChatData();
   }, []);
+
 
   const SubmitPrompt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
 
-    // Create new chat history with the user input
-    const newHistory: ChatMessage[] = [
-      ...chatHistory,
-      { type: "user", message: input },
-    ];
-    setChatHistory(newHistory);
-
     const res = await fetch("/api/starxgpt/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: input }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: input,
+        sessionId: currentSessionId, // Ensure this is passed correctly
+      }),
     });
 
     const data = await res.json();
+
+    if (data.sessionId) {
+      // Update the session ID if a new one is created
+      setCurrentSessionId(data.sessionId);
+    }
+
     setResponse(data.output);
 
-    // Add bot response to chat history
-    setChatHistory([...newHistory, { type: "bot", message: data.output }]);
+    // Add user and bot responses to chat history
+    setChatHistory(prevChatHistory => [
+      ...prevChatHistory,
+      { type: "user", message: input },
+      { type: "bot", message: data.output },
+    ]);
 
     setInput("");
     setLoading(false);
@@ -78,17 +86,23 @@ export default function StarXGPTPage() {
     <div className="flex space-x-4">
       <div className="w-1/4 h-screen overflow-auto scrollbar-hidden">
         <div className="flex flex-col flex-1 overflow-y-auto">
-          <div className="mt-4 grid gap-1 p-2 text-foreground">
+          <div className="mt-20 grid gap-1 p-2 text-foreground">
             <div className="px-2 text-xs font-medium text-muted-foreground">
               Today
             </div>
-            {[...Array(120)].map((_, index) => (
-              <Link
-                href="#"
-                key={index}
-                className="flex-1 block p-2 overflow-hidden text-sm truncate transition-colors rounded-md whitespace-nowrap hover:bg-muted/50"
-              >
-                {`Link ${index + 1}`}
+            {allChats.map((chat: any, index: Key | null | undefined) => (
+              <Link key={index} href={`/starxgpt/chat/${chat.sessionId}`}>
+                <a className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-neutral-200">
+                  <div className="flex flex-col">
+                    <div className="font-bold">Session ID: {chat.sessionId}</div>
+                    <div className="text-muted-foreground">
+                      {chat.content.length} messages
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(chat.createdAt).toLocaleTimeString()}
+                  </div>
+                </a>
               </Link>
             ))}
           </div>
@@ -148,7 +162,7 @@ export default function StarXGPTPage() {
           </div>
         )}
         <form onSubmit={SubmitPrompt}>
-          <div className="w-full fixed left-0 bottom-0 mx-auto py-2 flex flex-col gap-1.5 px-4 bg-background">
+          <div className="w-4/6 fixed  right-20 bottom-0 py-2 flex flex-col gap-1.5 px-4 bg-background">
             <div className="relative">
               <Textarea
                 placeholder="Message ChatGPT..."
