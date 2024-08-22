@@ -16,8 +16,9 @@ async function fetchFromGemini(
       contents: [{ parts: [{ text: context + "\n" + text }] }],
     }),
   });
-
+  console.log("API response : ", apiRes);
   const data = await apiRes.json();
+  console.log("API response data : ", data);
   if (
     data.candidates &&
     data.candidates[0] &&
@@ -26,6 +27,7 @@ async function fetchFromGemini(
   ) {
     const parts = data.candidates[0].content.parts;
     const outputText = parts.map((part: any) => part.text).join(" ");
+    console.log("Output text : ", outputText);
     return outputText;
   } else {
     throw new Error("Unexpected response structure from the Gemini API");
