@@ -1,19 +1,22 @@
 import { connectToDatabase } from "@/lib/mongodb";
 import ChatModel from "@/models/Chats";
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from 'uuid'; // Use uuid to generate new session IDs
+import { v4 as uuidv4 } from "uuid"; // Use uuid to generate new session IDs
 
-
-async function fetchFromGemini(text: string): Promise<string> {
+//fetch the data from the Gemini API
+async function fetchFromGemini(
+  text: string,
+  history: string[]
+): Promise<string> {
+  const context = history.map((entry: any) => entry.message).join("\n");
   const apiRes = await fetch(process.env.GEMINI_API_URL!, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
+      contents: [{ parts: [{ text: context + "\n" + text }] }],
     }),
   });
+
   const data = await apiRes.json();
   if (
     data.candidates &&
@@ -29,23 +32,21 @@ async function fetchFromGemini(text: string): Promise<string> {
   }
 }
 
+// POST request handler
 export async function POST(req: NextRequest, res: NextResponse) {
   try {
-    await connectToDatabase(); // Connect to the database
+    await connectToDatabase();
 
-    const { text, sessionId } = await req.json();
-    const outputText = await fetchFromGemini(text);
+    const { text, sessionId, history } = await req.json();
+    const outputText = await fetchFromGemini(text, history);
     const timestamp = new Date().toISOString();
 
-    // Use provided sessionId or generate a new one
-    const currentSessionId = sessionId || uuidv4();
-    console.log("Session ID being used: ", currentSessionId);
-
+    // Ensure sessionId is always defined (generate a new one if needed)
+    let currentSessionId = sessionId || uuidv4();
     // Check if session exists
     let session = await ChatModel.findOne({ sessionId: currentSessionId });
-
+    // If session exists, update it with the new message
     if (session) {
-      console.log("Session Found");
       session.content.push({
         role: "user",
         message: text,
@@ -59,9 +60,7 @@ export async function POST(req: NextRequest, res: NextResponse) {
 
       await session.save();
     } else {
-      console.log("Creating new session");
-      console.log("Session ID for new entry: ", currentSessionId);
-      
+      // If session does not exist, create a new one
       session = new ChatModel({
         sessionId: currentSessionId,
         content: [
@@ -80,46 +79,50 @@ export async function POST(req: NextRequest, res: NextResponse) {
       await session.save();
     }
 
-    return NextResponse.json({ success: true, output: outputText, sessionId: currentSessionId });
+    return NextResponse.json({
+      success: true,
+      output: outputText,
+      sessionId: currentSessionId,
+    });
   } catch (error) {
-    console.error("POST Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 
-
+// GET request handler
 export async function GET(req: NextRequest, res: NextResponse) {
   try {
     await connectToDatabase(); // Connect to the database
-    console.log("GET request");
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId");
 
     let session;
-    let allChats = [];
-    allChats = await ChatModel.find({});
     if (sessionId) {
       // Check if a session with this sessionId exists
       session = await ChatModel.findOne({ sessionId });
     }
-    console.log("Session ID: ", sessionId);
     if (session) {
       // If session exists, return the session's messages
-      console.log("Session found");
-      return NextResponse.json({ 
+      return NextResponse.json({
         sessionId: session.sessionId,
+        messages: session.content,
       });
     } else {
       // If no session is found, return a message or handle it as needed
-      return NextResponse.json({ 
-        message: "No existing session found", 
-        sessionId: null, 
-        messages: [] ,
-        allChats: allChats
+      return NextResponse.json({
+        message: "No existing session found",
+        sessionId: null,
+        messages: [],
       });
     }
   } catch (error) {
     console.error("GET Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

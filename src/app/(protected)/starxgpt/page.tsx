@@ -1,23 +1,64 @@
 "use client";
-import { FormEvent, Key, use, useEffect, useState } from "react";
+import { useEffect, useRef, useState, FormEvent, Key } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { TextGenerateEffect } from "@/components/text-generate-effect";
-import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import Link from "next/link";
+import "./style.css";
 import ChatModel from "@/models/Chats";
-import { set } from "mongoose";
+import { Skeleton } from "@/components/ui/skeleton";
+import moment from "moment";
 
 export default function StarXGPTPage() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
+  const [allChatsLoading, setAllChatsLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [allChats, setAllChats] = useState<typeof ChatModel[]>([]);
+  const [allChats, setAllChats] = useState<(typeof ChatModel)[]>([]);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollFunction = () => {
+    setTimeout(() => {
+      chatContainerRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  useEffect(() => {
+    scrollFunction();
+  }, [chatHistory]);
+
+  const openPreviousChat = async (sessionId: string) => {
+    const res = await fetch(`/api/starxgpt/chat?sessionId=${sessionId}`, {
+      method: "GET",
+    });
+    const data = await res.json();
+    setChatHistory(data.messages || []);
+    setCurrentSessionId(sessionId);
+    scrollFunction();
+  };
+
+  const newChat = async () => {
+    setCurrentSessionId(null);
+    setChatHistory([]);
+  };
+
+  useEffect(() => {
+    setAllChatsLoading(true);
+    const fetchAllChats = async () => {
+      const res = await fetch(`/api/starxgpt/allchats`, {
+        method: "GET",
+      });
+      const data = await res.json();
+      setAllChats(data.allChats || []);
+      setAllChatsLoading(false);
+    };
+    fetchAllChats();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -34,160 +75,169 @@ export default function StarXGPTPage() {
 
   useEffect(() => {
     const fetchChatData = async () => {
-      if (currentSessionId !== null) {
-        const res = await fetch(`/api/starxgpt/chat?sessionId=${currentSessionId}`, {
+      const res = await fetch(
+        `/api/starxgpt/chat?sessionId=${currentSessionId}`,
+        {
           method: "GET",
-        });
-        const data = await res.json();
-        console.log({data});
-        setChatHistory(data.messages || []);
-        setAllChats(data.allChats || []);
-      }
+        }
+      );
+      const data = await res.json();
+      setChatHistory(data.messages || []);
     };
-
     fetchChatData();
-  }, []);
-
+  }, [currentSessionId]);
 
   const SubmitPrompt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
-
     const res = await fetch("/api/starxgpt/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: input,
-        sessionId: currentSessionId, // Ensure this is passed correctly
+        sessionId: currentSessionId,
+        history: chatHistory,
       }),
     });
-
     const data = await res.json();
-
     if (data.sessionId) {
-      // Update the session ID if a new one is created
       setCurrentSessionId(data.sessionId);
     }
-
     setResponse(data.output);
 
-    // Add user and bot responses to chat history
-    setChatHistory(prevChatHistory => [
+    setChatHistory((prevChatHistory) => [
       ...prevChatHistory,
-      { type: "user", message: input },
-      { type: "bot", message: data.output },
+      { role: "user", message: input },
+      { role: "bot", message: data.output },
     ]);
-
     setInput("");
     setLoading(false);
+
+    setTimeout(() => {
+      chatContainerRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
   };
 
   return (
-    <div className="flex space-x-4">
-      <div className="w-1/4 h-screen overflow-auto scrollbar-hidden">
-        <div className="flex flex-col flex-1 overflow-y-auto">
-          <div className="mt-20 grid gap-1 p-2 text-foreground">
-            <div className="px-2 text-xs font-medium text-muted-foreground">
-              Today
-            </div>
-            {allChats.map((chat: any, index: Key | null | undefined) => (
-              <Link key={index} href={`/starxgpt/chat/${chat.sessionId}`}>
-                <a className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-neutral-200">
-                  <div className="flex flex-col">
-                    <div className="font-bold">Session ID: {chat.sessionId}</div>
-                    <div className="text-muted-foreground">
-                      {chat.content.length} messages
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(chat.createdAt).toLocaleTimeString()}
-                  </div>
-                </a>
-              </Link>
-            ))}
-          </div>
-        </div>
+    <div className="flex space-x-4 h-screen overflow-hidden pt-10">
+      {/* Sidebar for Previous Chats */}
+      <div className="w-1/4 h-full overflow-y-auto p-4 bg-gray-50">
+        <h2 className="text-xs font-semibold text-gray-500 mb-4">
+          Previous Chats
+        </h2>
+        <button
+          onClick={() => newChat()}
+          className="flex items-center gap-4 w-3/4 text-left py-2 px-4 rounded-lg hover:bg-gray-200 mb-2"
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={"/placeholder-bot.jpg"} alt={"Gemini"} />
+            <AvatarFallback></AvatarFallback>
+          </Avatar>
+          <div className="text-sm font-bold truncate">New Chat</div>
+        </button>
+        {allChatsLoading ? (
+          <Skeleton className="w-[100px] h-[20px] rounded-full" />
+        ) : (
+          allChats.map((chat: any, index: Key | null | undefined) => (
+            <button
+              key={index}
+              onClick={() => openPreviousChat(chat.sessionId)}
+              className="block w-full text-left py-2 px-4 rounded-lg hover:bg-gray-200 mb-2"
+            >
+              <div className="text-sm font-bold truncate">
+                {chat.content[0]?.message.length <= 20
+                  ? chat.content[0]?.message
+                  : chat.content[0]?.message.slice(0, 20) + "....."}
+              </div>
+              <div className="text-xs text-gray-400">
+                {moment().to(chat.createdAt)}
+              </div>
+            </button>
+          ))
+        )}
       </div>
-      <div className="w-full h-screen overflow-auto scrollbar-hidden">
-        <header className="fixed top-10 w-full flex h-14 items-center justify-between border-b bg-background px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <BotIcon className="h-6 w-6 text-primary" />
-            <h1 className="text-lg font-medium">
-              <TextGenerateEffect className="mb-4" words={"STAR X ASSISTANT"} />
-            </h1>
-          </div>
-        </header>
-        {chatHistory.length > 0 ? (
-          <main className="flex-1 overflow-auto px-4 py-6 sm:px-6 mb-20 mt-20">
-            <div className="w-full px-20 space-y-8">
-              <div className="flex flex-col space-y-4">
-                {chatHistory.map((msg: { type: string; message: string | null | undefined; }, index: Key | null | undefined) => (
+
+      {/* Main Chat Area */}
+      <div className="flex-1 h-full flex flex-col overflow-hidden">
+        {/* Chat History */}
+        <div className="flex-1 overflow-y-auto overflow-hidden p-6 bg-gray-50">
+          {chatHistory.length > 0 ? (
+            <div className="space-y-4">
+              {chatHistory.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex ${
+                    msg.role !== "user" ? "justify-start" : "justify-end"
+                  }`}
+                >
                   <div
-                    key={index}
-                    className={`flex items-start gap-4 ${
-                      msg.type === "user" ? "justify-start" : "justify-end"
+                    className={`max-w-lg p-4 rounded-xl shadow-md break-words ${
+                      msg.role === "user"
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-gray-900"
                     }`}
                   >
-                    <Avatar className="h-8 w-8 shrink-0 border">
-                      <AvatarImage
-                        src={
-                          msg.type === "user"
-                            ? "/placeholder-user.jpg"
-                            : "/placeholder-bot.jpg"
-                        }
-                        alt="Image"
-                      />
-                      <AvatarFallback>
-                        {msg.type === "user" ? "U" : "B"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid gap-1">
-                      <div className="font-bold">
-                        {msg.type === "user" ? "You" : "STARX GPT"}
-                      </div>
-                      <div className="prose text-muted-foreground">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="space-y-4 text-black">
-                          {msg.message}
-                        </ReactMarkdown>
-                      </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={
+                            msg.role === "user"
+                              ? "/placeholder-user.jpg"
+                              : "/placeholder-bot.jpg"
+                          }
+                          alt={msg.role === "user" ? "User" : "Gemini"}
+                        />
+                        <AvatarFallback>
+                          {msg.role === "user" ? "U" : "G"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-semibold">
+                        {msg.role === "user" ? "You" : "Gemini"}
+                      </span>
+                    </div>
+                    <div className="prose prose-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.message}
+                      </ReactMarkdown>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <Skeleton className="w-2/3 h-20 rounded-lg" />
+                </div>
+              )}
+              <div ref={chatContainerRef} />
             </div>
-          </main>
-        ) : (
-          <div className="flex flex-row min-h-screen justify-center items-center text-xl">
-            <TextGenerateEffect words="Welcome to STARX GPT" />
-          </div>
-        )}
-        <form onSubmit={SubmitPrompt}>
-          <div className="w-4/6 fixed  right-20 bottom-0 py-2 flex flex-col gap-1.5 px-4 bg-background">
-            <div className="relative">
-              <Textarea
-                placeholder="Message ChatGPT..."
-                name="message"
-                value={input}
-                {...(loading && { disabled: true })}
-                onChange={(e) => setInput(e.target.value)}
-                id="message"
-                rows={1}
-                className="overflow-hidden min-h-[48px] rounded-2xl resize-none p-4 border border-neutral-400 shadow-sm pr-16"
-              />
-              <Button
-                type="submit"
-                {...(loading && { disabled: true })}
-                size="icon"
-                className="absolute w-8 h-8 top-3 right-3"
-              >
-                <ArrowUpIcon className="w-4 h-4" />
-                <span className="sr-only">Send</span>
-              </Button>
+          ) : (
+            <div className="flex flex-col justify-center items-center h-full text-xl text-gray-500">
+              <TextGenerateEffect words="Welcome to STARX GPT" />
             </div>
-            <p className="text-xs font-medium text-center text-neutral-700">
-              STARX GPT can make mistakes. Consider checking important
-              information.
-            </p>
+          )}
+        </div>
+
+        {/* Chat Input */}
+        <form
+          onSubmit={SubmitPrompt}
+          className="p-4 bg-white border-t border-gray-300"
+        >
+          <div className="relative flex items-center">
+            <Textarea
+              placeholder="Message Gemini..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={loading}
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-transparent border absolute right-4 top-1/2 transform -translate-y-1/2 text-blue-500 hover:text-blue-600 hover:bg-slate-300"
+            >
+              <ArrowUpIcon className="w-6 h-6" />
+            </Button>
           </div>
         </form>
       </div>
@@ -203,38 +253,14 @@ function ArrowUpIcon(props: any) {
       width="24"
       height="24"
       viewBox="0 0 24 24"
-      fill="purple"  // Set the background color to purple
+      fill="currentColor"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="m5 12 7-7 7 7" />
+      <path d="M5 12l7-7 7 7" />
       <path d="M12 19V5" />
-    </svg>
-  );
-}
-
-function BotIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="purple"  // Set the background color to purple
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 8V4H8" />
-      <rect width="16" height="12" x="4" y="8" rx="2" />
-      <path d="M2 14h2" />
-      <path d="M20 14h2" />
-      <path d="M15 13v2" />
-      <path d="M9 13v2" />
     </svg>
   );
 }
