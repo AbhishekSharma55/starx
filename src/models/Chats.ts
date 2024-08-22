@@ -12,6 +12,10 @@ const chatSchema = new Schema({
     required: true,
     unique: true,
   },
+  createdAt : {
+    type: Date,
+    default: Date.now,
+  },
   content: [
     {
       role: {
@@ -29,8 +33,6 @@ const chatSchema = new Schema({
       },
     },
   ],
-}, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
 });
 
 const ChatModel = mongoose.models.Chat || mongoose.model('Chat', chatSchema);

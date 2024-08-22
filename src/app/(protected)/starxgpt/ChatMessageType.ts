@@ -1,4 +1,4 @@
 interface ChatMessage {
-  type: "user" | "bot";
+  role: "user" | "bot";
   message: string;
 }

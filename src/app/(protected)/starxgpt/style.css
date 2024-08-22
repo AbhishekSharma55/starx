@@ -1,0 +1,9 @@
+.chat-message {
+  overflow-wrap: break-word; /* Ensures long words break */
+  word-break: break-word; /* Breaks words that are too long */
+}
+
+.chat-container {
+  max-width: 100%; /* Ensure it doesn't exceed the container width */
+  overflow-x: auto; /* Allows horizontal scrolling if necessary */
+}

@@ -202,8 +202,8 @@ export function DashboardNavigationMenu() {
 
       </NavigationMenuList>
     </NavigationMenu>
-    <div className="left-0 end-0"> 
-          <button onClick={()=>{signOut()}}>
+    <div className="left-0 end-0 border rounded-lg align-middle justify-center items-center h-full"> 
+          <button onClick={()=>{signOut()}} className="align-middle">
             Sign out
           </button>
         </div>
