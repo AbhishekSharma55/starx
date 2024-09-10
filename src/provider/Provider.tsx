@@ -1,6 +1,39 @@
 "use client";
+
+import React from "react";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import { isNotFoundError } from "@/lib/http";
 import { SessionProvider } from "next-auth/react";
 
+const DEFAULT_STALE_TIME = 1000 * 60 * 5; // 5 minutes
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>;
+  const clientRef = React.useRef<QueryClient>();
+
+  if (!clientRef.current) {
+    clientRef.current = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: DEFAULT_STALE_TIME,
+          retry: (failureCount, error) => {
+            const isNotFound = isNotFoundError(error);
+            if (isNotFound) {
+              return false;
+            }
+
+            return failureCount < 3;
+          },
+        },
+      },
+    });
+  }
+
+  return (
+    <SessionProvider>
+      <QueryClientProvider client={clientRef.current}>
+        {children}
+      </QueryClientProvider>
+    </SessionProvider>
+  );
 }

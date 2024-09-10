@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
-import { SessionProvider } from "next-auth/react";
 import { Providers } from "../provider/Provider";
 import { ThemeProvider } from "@/components/theme-provider";
+
 
 const inter = Montserrat({ subsets: ["latin"] });
 
@@ -20,16 +20,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning> 
         <body className={inter.className}>
-          <Providers>
           <ThemeProvider
             attribute="class"
             defaultTheme="light"
             enableSystem
             disableTransitionOnChange
           >
+
+            <Providers>
             {children}
-          </ThemeProvider>
       </Providers>
+
+          </ThemeProvider>
         </body>
     </html>
   );
