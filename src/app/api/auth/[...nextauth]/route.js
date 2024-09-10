@@ -14,7 +14,7 @@ const handler = NextAuth({
         console.log("This user is an admin:", user.email);
         return true;
       } else {
-        console.log("This user tried to log in but is not an admin:", user.email);
+        console.log("This mf tried to log in but is not an admin:", user.email);
         return false;
       }
     },
