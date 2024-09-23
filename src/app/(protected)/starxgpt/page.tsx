@@ -130,7 +130,7 @@ export default function StarXGPTPage() {
           className="flex items-center gap-4 w-3/4 text-left py-2 px-4 rounded-lg hover:bg-gray-200 mb-2"
         >
           <Avatar className="h-8 w-8">
-            <AvatarImage src={"/placeholder-bot.jpg"} alt={"Gemini"} />
+            <AvatarImage src={"/placeholder-user.jpg"} alt={"Gemini"} />
             <AvatarFallback></AvatarFallback>
           </Avatar>
           <div className="text-sm font-bold truncate">New Chat</div>
@@ -185,14 +185,14 @@ export default function StarXGPTPage() {
                               ? "/placeholder-user.jpg"
                               : "/placeholder-user.jpg"
                           }
-                          alt={msg.role === "user" ? "User" : "Gemini"}
+                          alt={msg.role === "user" ? "User" : "starx gpt"}
                         />
                         <AvatarFallback>
                           {msg.role === "user" ? "U" : "G"}
                         </AvatarFallback>
                       </Avatar>
                       <span className="font-semibold">
-                        {msg.role === "user" ? "You" : "Gemini"}
+                        {msg.role === "user" ? "You" : "starx gpt"}
                       </span>
                     </div>
                     <div className="prose prose-sm">
