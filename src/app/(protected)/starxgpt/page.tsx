@@ -183,7 +183,7 @@ export default function StarXGPTPage() {
                           src={
                             msg.role === "user"
                               ? "/placeholder-user.jpg"
-                              : "/placeholder-bot.jpg"
+                              : "/placeholder-user.jpg"
                           }
                           alt={msg.role === "user" ? "User" : "Gemini"}
                         />
