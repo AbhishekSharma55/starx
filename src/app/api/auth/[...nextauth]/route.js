@@ -14,8 +14,8 @@ const handler = NextAuth({
         console.log("This user is an admin:", user.email);
         return true;
       } else {
-        console.log("This mf tried to log in but is not an admin:", user.email);
-        return false;
+        console.log("This person tried to log in but is not an admin:", user.email);
+        return true;
       }
     },
     async redirect({ url, baseUrl }) {
